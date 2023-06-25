@@ -2,10 +2,11 @@ import warnings
 import os
 from gridworld.core.world import Agent, World
 from gridworld.tasks.task import Task, Tasks
-
-from gym.spaces import Dict, Box, Discrete, Space
-from gym import Env, Wrapper as gymWrapper
-import gym
+from gridworld.data import IGLUDataset
+from gridworld.tasks import DUMMY_TASK
+from gymnasium.spaces import Dict, Box, Discrete, Space
+from gymnasium import Env, Wrapper as gymWrapper
+import gymnasium as gym
 import numpy as np
 from copy import copy
 
@@ -20,14 +21,11 @@ class String(Space):
         return isinstance(obj, str)
 
 
-
-
-
 class GridWorld(Env):
     def __init__(
             self, render=True, max_steps=250, select_and_place=False,
             discretize=False, right_placement_scale=1., wrong_placement_scale=0.1,
-            render_size=(64, 64), target_in_obs=False, action_space='walking', 
+            render_size=(512, 512), test_mode=False, target_in_obs=False, action_space='walking', 
             vector_state=True, fake=False, name='') -> None:
         self.agent = Agent(sustain=False)
         self.world = World()
@@ -113,6 +111,12 @@ class GridWorld(Env):
         else:
             self.renderer = None
             self.world._initialize()
+        
+        if test_mode:
+            self.set_task_generator(DUMMY_TASK)
+        else:
+            dataset = IGLUDataset(dataset_version='v0.1.0-rc1')
+            self.set_task_generator(dataset)
 
     def enable_renderer(self):
         if self.renderer is None and not self.fake:
@@ -203,7 +207,8 @@ class GridWorld(Env):
             self.starting_grid = self._task.starting_grid
         return self._task
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
         if self._task is None:
             if self._task_generator is None:
                 raise ValueError('Task is not initialized! Initialize task before working with'
@@ -220,7 +225,7 @@ class GridWorld(Env):
             self.starting_grid = self._overwrite_starting_grid
         else:
             self.starting_grid = self._task.starting_grid
-        
+        print("starting_grid", self._task.starting_grid)
         self._synthetic_init_grid = None
         if self.starting_grid is not None:
             self._synthetic_init_grid = Tasks.to_dense(self.starting_grid)
@@ -229,7 +234,7 @@ class GridWorld(Env):
                 # blocks to remove have negative ids.
                 '', target_grid=self._task.target_grid - self._synthetic_init_grid
             )
-            self._synthetic_task.reset()
+        self._synthetic_task.reset()
 
         for block in set(self.world.placed):
             self.world.remove_block(block)
@@ -258,9 +263,9 @@ class GridWorld(Env):
             obs['pov'] = self.render()[..., :-1]
         elif self.do_render:
             obs['pov'] = self.observation_space['pov'].sample()
-        return obs
+        return obs, {}
 
-    def render(self,):
+    def render(self):
         if not self.do_render:
             raise ValueError('create env with render=True')
         return self.renderer.render()
@@ -300,8 +305,8 @@ class GridWorld(Env):
             obs['pov'] = self.render()[..., :-1]
         elif self.do_render:
             obs['pov'] = self.observation_space['pov'].sample()
-        return obs, reward, done, {}
-
+        #return obs, reward, done, {}
+        return obs, reward, done, False, {}
 
 class Wrapper(gymWrapper):
     def __getattr__(self, name):
@@ -323,7 +328,7 @@ class SizeReward(Wrapper):
     return super().reset()
 
   def step(self, action):
-    obs, reward, done, info = super().step(action)
+    obs, reward, done, terminated, info = super().step(action)
     intersection = self.unwrapped.max_int
     reward = max(intersection, self.size) - self.size
     self.size = max(intersection, self.size)

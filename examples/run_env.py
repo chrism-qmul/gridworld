@@ -1,6 +1,6 @@
 import sys
-sys.path.insert(0, '../')
-import gym
+#sys.path.insert(0, '../')
+import gymnasium as gym
 import gridworld
 from gridworld.tasks import DUMMY_TASK
 from time import perf_counter
@@ -10,7 +10,7 @@ from time import perf_counter
 # Note that without
 env = gym.make('IGLUGridworld-v0')
 
-env.set_task(DUMMY_TASK)
+#env.set_task(DUMMY_TASK)
 print(f'Action space: {env.action_space}')
 # print(f'Observation space: {env.observation_space}')
 time = 0
